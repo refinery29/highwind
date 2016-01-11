@@ -1,0 +1,19 @@
+{
+  "name": "airship",
+  "version": "0.1.0",
+  "description": "Dynamically sourced mock API powered by Express",
+  "main": "lib/mock_api.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Chris Sloop",
+  "license": "MIT",
+  "devDependencies": {
+    "cors": "^2.7.1",
+    "express": "^4.13.3",
+    "fs": "0.0.2",
+    "mocha": "^2.3.4",
+    "node-fetch": "^1.3.3",
+    "supertest": "^1.1.0"
+  }
+}
