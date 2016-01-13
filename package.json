@@ -1,5 +1,5 @@
 {
-  "name": "airship",
+  "name": "highwind",
   "version": "0.1.0",
   "description": "Dynamically sourced mock API powered by Express",
   "main": "lib/mock_api.js",
