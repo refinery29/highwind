@@ -1,0 +1,6 @@
+test({
+  "title": "JSONP Response",
+  "result": {
+    "body": "A persisted JSONP response for unit tests"
+  }
+})

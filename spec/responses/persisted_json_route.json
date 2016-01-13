@@ -1,0 +1,6 @@
+{
+  "title": "JSON Response",
+  "result": {
+    "body": "A persisted JSON response for unit tests"
+  }
+}
