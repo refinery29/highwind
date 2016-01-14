@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint . --config .eslintrc.js",
     "test": "mocha spec/mock_api_spec.js --require babel-core/register",
-    "prepublish": "babel src --out-dir lib"
+    "prepublish": "./node_modules/.bin/babel src --out-dir lib"
   },
   "license": "MIT",
   "repository": {
