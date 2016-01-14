@@ -5,7 +5,7 @@
   "main": "lib/mock_api.js",
   "scripts": {
     "test": "mocha spec/mock_api_spec.js --require babel-core/register",
-    "prepublish": "node_modules/babel-cli/bin/babel.js src --out-dir lib"
+    "prepublish": "babel src --out-dir lib"
   },
   "license": "MIT",
   "repository": {
