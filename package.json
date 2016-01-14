@@ -1,13 +1,21 @@
 {
   "name": "highwind",
   "version": "0.1.0",
-  "description": "Dynamically sourced mock API powered by Express",
+  "description": "Mock API express server",
   "main": "lib/mock_api.js",
   "scripts": {
     "test": "mocha spec/mock_api_spec.js --require babel-core/register",
     "prepublish": "node_modules/babel-cli/bin/babel.js src --out-dir lib"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/refinery29/highwind.git"
+  },
+  "bugs": {
+    "url": "https://github.com/refinery29/highwind/issues"
+  },
+  "homepage": "https://github.com/refinery29/highwind#readme",
   "devDependencies": {
     "babel": "^6.3.26",
     "babel-cli": "^6.4.0",
