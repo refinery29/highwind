@@ -1,3 +1,4 @@
+import 'babel-polyfill';
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
@@ -8,6 +9,7 @@ import fs from 'fs';
 let PROD_ROOT_URL;
 let FIXTURES_PATH;
 let QUERY_STRING_IGNORE;
+let QUIET_MODE;
 const SERVERS = {};
 const REQUIRED_CONFIG_OPTIONS = [
   'prodRootURL',
@@ -39,6 +41,7 @@ module.exports = {
     PROD_ROOT_URL = prodRootURL;
     FIXTURES_PATH = fixturesPath;
     QUERY_STRING_IGNORE = queryStringIgnore;
+    QUIET_MODE = quiet;
 
     if (corsWhitelist) {
       setCorsMiddleware(app, corsWhitelist);
@@ -53,7 +56,7 @@ module.exports = {
         if (err) {
           recordFromProd(req, res);
         } else {
-          serveLocalResponse(res, fileName, data, { quiet: quiet });
+          serveLocalResponse(res, fileName, data, { quiet: QUIET_MODE });
         }
       });
     });
@@ -158,7 +161,9 @@ function delegateRouteOverrides(app, overrides, encoding) {
       }
 
       app[method].call(app, route, jsonMiddleware, (req, res) => {
-        console.info(`==> 📁  Serving local fixture for ${method.toUpperCase()} -> '${route}'`);
+        if (!QUIET_MODE) {
+          console.info(`==> 📁  Serving local fixture for ${method.toUpperCase()} -> '${route}'`);
+        }
         const payload = responseIsJson && typeof mergeParams === 'function'
           ? mergeParams(JSON.parse(fixture), req.body)
           : fixture;
