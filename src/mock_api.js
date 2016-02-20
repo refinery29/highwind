@@ -17,7 +17,7 @@ const REQUIRED_CONFIG_OPTIONS = [
 ];
 
 module.exports = {
-  start(options) {
+  start(options, callback) {
     throwIfMissingOptions(options);
     const app = express();
     const defaults = {
@@ -49,6 +49,7 @@ module.exports = {
     if (overrides) {
       delegateRouteOverrides(app, overrides, encoding);
     }
+
     app.get('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
       const fileName = getFileName(path);
@@ -60,7 +61,12 @@ module.exports = {
         }
       });
     });
+
     startListening(app, ports);
+
+    if (typeof callback === 'function') {
+      callback();
+    }
     return {
       app: app,
       servers: SERVERS
@@ -71,7 +77,7 @@ module.exports = {
     const servers = clientServers || SERVERS;
     const ports = Object.keys(servers);
     if (!ports.length) {
-      throw Error('closeMockAPI invoked without arguments or open servers');
+      throw Error('close() invoked without arguments or open servers');
     }
     ports.forEach(port => {
       console.info(`Closing mock API server on port ${port}`);
