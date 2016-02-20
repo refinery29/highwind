@@ -299,18 +299,19 @@ describe('start()', function() {
 
 describe('close()', function() {
   describe('without arguments', function() {
-    it('closes and garbage collects all servers instantiated by start()', function() {
-      const ports = [1000, 2000, 3000];
+    it('closes and garbage collects all servers instantiated by start()', function(done) {
+      const ports = [1111, 1112, 1113];
       const modOptions = Object.assign({}, DEFAULT_OPTIONS, { ports: ports });
       const { servers } = start(modOptions);
       const closedServers = [];
 
       ports.forEach(port => servers[port].on('close', () => closedServers.push(port)));
       close();
-      global.setInterval(1, () => {
+      global.setTimeout(() => {
         expect(ports).to.deep.equal(closedServers);
         expect(servers).to.deep.equal({});
-      });
+        done();
+      }, 1);
     });
 
     it('throws an error unless start() has been previously invoked', function() {
@@ -319,7 +320,7 @@ describe('close()', function() {
   });
 
   describe('with arguments', function() {
-    it('closes and garbage collects all servers passed to it', function() {
+    it('closes and garbage collects all servers passed to it', function(done) {
       const mockServer = {
         close() {}
       };
@@ -329,9 +330,10 @@ describe('close()', function() {
       };
       expect(mockServer.close).to.have.been.called;
       close(servers);
-      global.setInterval(1, () => {
+      global.setTimeout(() => {
         expect(servers).to.deep.equal({});
-      });
+        done();
+      }, 1);
     });
   });
 });
