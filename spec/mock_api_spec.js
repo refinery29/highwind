@@ -19,7 +19,7 @@ const DEFAULT_OPTIONS = {
   quiet: true
 };
 
-describe('#start', function() {
+describe('start()', function() {
   describe('Initialization', function() {
     it('throws an error when a prodRootURL or fixturesPath are not specified', function() {
       expect(() => {
@@ -297,9 +297,9 @@ describe('#start', function() {
   });
 });
 
-describe('#close', function() {
+describe('close()', function() {
   describe('without arguments', function() {
-    it('closes and garbage collects all servers instantiated by start', function() {
+    it('closes and garbage collects all servers instantiated by start()', function() {
       const ports = [1000, 2000, 3000];
       const modOptions = Object.assign({}, DEFAULT_OPTIONS, { ports: ports });
       const { servers } = start(modOptions);
@@ -313,7 +313,7 @@ describe('#close', function() {
       });
     });
 
-    it('throws an error unless start has been previously invoked', function() {
+    it('throws an error unless start() has been previously invoked', function() {
       expect(close).to.throw(Error);
     });
   });
