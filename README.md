@@ -22,7 +22,7 @@ const options = {
 };
 
 // booting your server
-highwind.start(options);
+highwind.start(options, [callback]);
 
 // closing your server
 highwind.close();
