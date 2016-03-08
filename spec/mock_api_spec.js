@@ -21,38 +21,46 @@ const DEFAULT_OPTIONS = {
 
 describe('start()', function() {
   describe('Initialization', function() {
-    it('throws an error when a prodRootURL or fixturesPath are not specified', function() {
-      expect(() => {
-        start({
-          prodRootURL: 'http://www.refinery29.com'
-        });
-      }).to.throw(Error);
+    it('calls the passed in callback with an error when fixturesPath is not specified', function(done) {
+      start({
+        prodRootURL: 'http://www.refinery29.com',
+      }, (err, result) => {
+        expect(err).to.be.an('error');
+        done();
+      });
+    });
 
-      expect(() => {
-        start({
-          fixturesPath: './fixtures'
-        });
-      }).to.throw(Error);
+    it('calls the passed in callback with an error when prodRootUrl is not specified', function(done) {
+      start({
+        fixturesPath: './fixtures',
+      }, (err, result) => {
+        expect(err).to.be.an('error');
+        done();
+      });
+    });
 
-      expect(() => {
-        start({
-          prodRootURL: 'http://www.refinery29.com',
-          fixturesPath: './fixtures'
-        });
-      }).to.not.throw(Error);
+    it('does not pass in an error when prodRootURL and fixturesPath are specified', function(done) {
+      start({
+        prodRootURL: 'http://www.refinery29.com',
+        fixturesPath: './fixtures'
+      }, (err, result) => {
+        expect(err).to.not.exist;
+        close(result.servers);
+        done();
+      });
     });
   });
 
-  describe('When a callback is supplied', function() {
-    it('calls the callback on success', function() {
-      const options = {
-        prodRootURL: 'http://www.refinery29.com',
-        fixturesPath: './fixtures'
-      };
-      const callback = () => {};
-      spyOn(callback);
-      start(options, callback);
-      expect(callback).to.have.been.called;
+  it('calls the callback, passing in the instance of Express and an object of servers on success', function(done) {
+    const options = {
+      prodRootURL: 'http://www.refinery29.com',
+      fixturesPath: './fixtures'
+    };
+    start(options, (err, result) => {
+      expect(result.app).to.be.a('function');
+      expect(result.servers).to.be.an('object');
+      close(result.servers);
+      done();
     });
   });
 
@@ -65,12 +73,15 @@ describe('start()', function() {
         const responsePath = RESPONSES_DIR + route + '.json';
         const responsePathWithCallback = RESPONSES_DIR + route + JSONP_CALLBACK + '.json';
 
-        beforeEach(function() {
-          mockAPI = start(DEFAULT_OPTIONS);
+        beforeEach(function(done) {
           nock(PROD_ROOT_URL)
             .get(route)
             .query(true)
             .reply(200, response);
+          start(DEFAULT_OPTIONS, (err, result) => {
+            mockAPI = result.app;
+            done();
+          });
         });
 
         afterEach(function() {
@@ -86,21 +97,21 @@ describe('start()', function() {
         });
 
         it('persists and responds with a response from the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route)
             .expect('Content-Type', /application\/json/)
             .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
         });
 
         it('truncates ignored query string expressions in the persisted response filename', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route + IGNORED_QUERY_PARAMS)
             .expect('Content-Type', /application\/json/)
             .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
         });
 
         it('renders the endpoint as JSONP when a callback is specified in the query string', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route + JSONP_CALLBACK)
             .expect('Content-Type', /application\/javascript/)
             .expect(200, response, () => fs.access(responsePathWithCallback, fs.F_OK, done));
@@ -115,12 +126,15 @@ describe('start()', function() {
         const jsonResponse = JSON.parse(fs.readFileSync(responsePath, 'utf8'));
         const jsonpResponse = fs.readFileSync(responsePathWithCallback, 'utf8');
 
-        beforeEach(function() {
-          mockAPI = start(DEFAULT_OPTIONS);
+        beforeEach(function(done) {
           nock(PROD_ROOT_URL)
             .get(route)
             .query(true)
             .replyWithError('Fake API hit the production API');
+          start(DEFAULT_OPTIONS, (err, result) => {
+            mockAPI = result.app;
+            done();
+          });
         });
 
         afterEach(function() {
@@ -128,21 +142,21 @@ describe('start()', function() {
         });
 
         it('serves the locally persisted response as JSON and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route)
             .expect('Content-Type', /application\/json/)
             .expect(200, jsonResponse, done);
         });
 
         it('ignores truncated query string expressions when identifying the persisted response filename and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route + IGNORED_QUERY_PARAMS)
             .expect('Content-Type', /application\/json/)
             .expect(200, jsonResponse, done);
         });
 
         it('renders the endpoint as JSONP when a callback is specified in the query string and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route + JSONP_CALLBACK)
             .expect('Content-Type', /application\/javascript/)
             .expect(200, jsonpResponse, done);
@@ -155,11 +169,14 @@ describe('start()', function() {
         const responsePath = RESPONSES_DIR + route + '.json';
         const response = fs.readFileSync(responsePath, 'utf8');
 
-        before(function() {
-          mockAPI = start(DEFAULT_OPTIONS);
+        before(function(done) {
           nock(PROD_ROOT_URL)
             .get(route)
             .replyWithError('Fake API hit the production API');
+          start(DEFAULT_OPTIONS, (err, result) => {
+            mockAPI = result.app;
+            done();
+          });
         });
 
         after(function() {
@@ -167,7 +184,7 @@ describe('start()', function() {
         });
 
         it('responds with the locally persisted response as `text/html` and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route)
             .expect('Content-Type', /text\/html/)
             .expect(200, response, done);
@@ -195,12 +212,15 @@ describe('start()', function() {
           }
         });
 
-        before(function() {
-          mockAPI = start(modOptions);
+        before(function(done) {
           nock(PROD_ROOT_URL)
             .get(route)
             .query(true)
             .replyWithError('Fake API hit the production API');
+          start(modOptions, (err, result) => {
+            mockAPI = result.app;
+            done();
+          });
         });
 
         after(function() {
@@ -208,14 +228,14 @@ describe('start()', function() {
         });
 
         it('responds with the specified response, status, and headers and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route)
             .expect('Content-Type', /text\/plain/)
             .expect(503, response, done);
         });
 
         it('responds with the specified headers even if the filename specifies a JSONP callback', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route + JSONP_CALLBACK)
             .expect('Content-Type', /text\/plain/, done);
         });
@@ -236,11 +256,14 @@ describe('start()', function() {
           }
         });
 
-        before(function() {
-          mockAPI = start(modOptions);
+        before(function(done) {
           nock(PROD_ROOT_URL)
             .get(route)
             .replyWithError('Fake API hit the production API');
+          start(modOptions, (err, result) => {
+            mockAPI = result.app;
+            done();
+          });
         });
 
         after(function() {
@@ -248,7 +271,7 @@ describe('start()', function() {
         });
 
         it('responds with the specified response rendered as JSON, status 200, and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .get(route)
             .expect('Content-Type', /application\/json/)
             .expect(200, response, done);
@@ -274,11 +297,14 @@ describe('start()', function() {
           }
         });
 
-        before(function() {
-          mockAPI = start(modOptions);
+        before(function(done) {
           nock(PROD_ROOT_URL)
             .post(route)
             .replyWithError('Fake API hit the production API');
+          start(modOptions, (err, result) => {
+            mockAPI = result.app;
+            done();
+          });
         });
 
         after(function() {
@@ -286,7 +312,7 @@ describe('start()', function() {
         });
 
         it('responds with the specified response rendered as JSON, status 200, and does not hit the production API', function(done) {
-          request(mockAPI.app)
+          request(mockAPI)
             .post(route)
             .send(reqBody)
             .expect('Content-Type', /application\/json/)
@@ -298,11 +324,23 @@ describe('start()', function() {
 });
 
 describe('close()', function() {
+  it('throws an error unless start() has been previously invoked', function() {
+    expect(close).to.throw(Error);
+  });
+
   describe('without arguments', function() {
-    it('closes and garbage collects all servers instantiated by start()', function(done) {
-      const ports = [1111, 1112, 1113];
+    let ports, servers;
+
+    beforeEach(function(done) {
+      ports = [1111, 1112, 1113];
       const modOptions = Object.assign({}, DEFAULT_OPTIONS, { ports: ports });
-      const { servers } = start(modOptions);
+      start(modOptions, (err, result) => {
+        servers = result.servers;
+        done();
+      });
+    });
+
+    it('closes and garbage collects all servers instantiated by start()', function(done) {
       const closedServers = [];
 
       ports.forEach(port => servers[port].on('close', () => closedServers.push(port)));
@@ -312,10 +350,6 @@ describe('close()', function() {
         expect(servers).to.deep.equal({});
         done();
       }, 1);
-    });
-
-    it('throws an error unless start() has been previously invoked', function() {
-      expect(close).to.throw(Error);
     });
   });
 

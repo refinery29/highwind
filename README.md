@@ -22,7 +22,12 @@ const options = {
 };
 
 // booting your server
-highwind.start(options, [callback]);
+highwind.start(options, (err, result) => {
+  // 'result.app' is the instance of express
+  //
+  // 'result.servers' represents all currently running Highwind servers,
+  // and is an object with signature { port : server }.
+});
 
 // closing your server
 highwind.close();

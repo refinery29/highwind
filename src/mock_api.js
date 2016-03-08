@@ -5,6 +5,7 @@ import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
 import { parse as urlParse } from 'url';
 import fs from 'fs';
+import async from 'async';
 
 let PROD_ROOT_URL;
 let FIXTURES_PATH;
@@ -18,7 +19,11 @@ const REQUIRED_CONFIG_OPTIONS = [
 
 module.exports = {
   start(options, callback) {
-    throwIfMissingOptions(options);
+    const error = generateMissingParamsError(options, callback);
+    if (error) {
+      return callback(error);
+    }
+
     const app = express();
     const defaults = {
       ports: [4567],
@@ -62,15 +67,11 @@ module.exports = {
       });
     });
 
-    startListening(app, ports);
-
-    if (typeof callback === 'function') {
-      callback();
-    }
-    return {
+    const result = {
       app: app,
       servers: SERVERS
     };
+    return startListening(app, ports, err => callback(err, result));
   },
 
   close(clientServers) {
@@ -87,12 +88,21 @@ module.exports = {
   }
 }
 
-function throwIfMissingOptions(options) {
-  REQUIRED_CONFIG_OPTIONS.forEach(key => {
+function generateMissingParamsError(options, callback) {
+  let error;
+
+  if (typeof callback !== 'function') {
+    return new Error('Missing callback');
+  }
+
+  for (let i = 0; i < REQUIRED_CONFIG_OPTIONS.length; i++) {
+    const key = REQUIRED_CONFIG_OPTIONS[i];
     if (typeof options[key] !== 'string') {
-      throw Error(`Missing definition of ${key} in config file`);
+      return new Error(`Missing definition of ${key} in config file`);
     }
-  });
+  }
+
+  return null;
 }
 
 function setCorsMiddleware(app, whitelist) {
@@ -107,21 +117,25 @@ function setCorsMiddleware(app, whitelist) {
   app.use(corsMiddleware);
 }
 
-function startListening(app, ports) {
-  ports.forEach(port => {
-    if (SERVERS.hasOwnProperty(port)) {
-      console.warn(`Port ${port} specified more than once in config file`);
-      return;
-    }
-    const server = app.listen(port, (err) => {
-      if (err) {
-        console.error(err);
-      } else {
-        console.info(`Mock API server listening on port ${port}`);
+function startListening(app, ports, callback) {
+  const tasks = ports.map(port => {
+    return (callback) => {
+      if (SERVERS.hasOwnProperty(port)) {
+        console.warn(`Port ${port} specified more than once in config file`);
+        return;
       }
-    });
-    SERVERS[port] = server;
+      const server = app.listen(port, (err) => {
+        if (err) {
+          callback(err);
+        } else {
+          console.info(`Mock API server listening on port ${port}`);
+          callback(null);
+        }
+      });
+      SERVERS[port] = server;
+    }
   });
+  async.parallel(tasks, callback);
 }
 
 function delegateRouteOverrides(app, overrides, encoding) {
