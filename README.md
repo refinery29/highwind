@@ -40,7 +40,8 @@ highwind.start(options, (err, result) => {
 // closing your server
 
 // first argument is an optional array of servers with the same signature
-// as highwind.start's `result.servers`
+// as highwind.start's `result.servers`. If this param is not passed in,
+// highwind.close will close all currently running servers.
 highwind.close(null, (err) => {
   // do something after all currently running servers have been closed
 });
