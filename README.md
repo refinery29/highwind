@@ -23,14 +23,27 @@ const options = {
 
 // booting your server
 highwind.start(options, (err, result) => {
-  // 'result.app' is the instance of express
+  // 'result.app' is the express object
   //
   // 'result.servers' represents all currently running Highwind servers,
-  // and is an object with signature { port : server }.
+  // and is an array of server objects with signature:
+  // {
+  //   port : number
+  //   server : instance of the express object in 'result.app'
+  //   active : bool
+  // }
+  //
+  // The important thing to note is that by the time the callback is called,
+  // result[n].server is currently listening for requests.
 });
 
 // closing your server
-highwind.close();
+
+// first argument is an optional array of servers with the same signature
+// as highwind.start's `result.servers`
+highwind.close(null, (err) => {
+  // do something after all currently running servers have been closed
+});
 ```
 
 Highwind only needs to know your the root URL for your production API and the
