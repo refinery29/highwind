@@ -5,20 +5,25 @@ import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
 import { parse as urlParse } from 'url';
 import fs from 'fs';
+import { parallel } from 'async';
 
 let PROD_ROOT_URL;
 let FIXTURES_PATH;
 let QUERY_STRING_IGNORE;
 let QUIET_MODE;
-const SERVERS = {};
+const SERVERS = [];
 const REQUIRED_CONFIG_OPTIONS = [
   'prodRootURL',
   'fixturesPath'
 ];
 
 module.exports = {
-  start(options) {
-    throwIfMissingOptions(options);
+  start(options, callback) {
+    const error = generateMissingParamsError(options, callback);
+    if (error) {
+      return callback(error);
+    }
+
     const app = express();
     const defaults = {
       ports: [4567],
@@ -49,6 +54,7 @@ module.exports = {
     if (overrides) {
       delegateRouteOverrides(app, overrides, encoding);
     }
+
     app.get('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
       const fileName = getFileName(path);
@@ -60,33 +66,48 @@ module.exports = {
         }
       });
     });
-    startListening(app, ports);
-    return {
+
+    const result = {
       app: app,
       servers: SERVERS
     };
+    return startListening(app, ports, err => callback(err, result));
   },
 
-  close(clientServers) {
+  close(clientServers, callback) {
     const servers = clientServers || SERVERS;
-    const ports = Object.keys(servers);
-    if (!ports.length) {
-      throw Error('closeMockAPI invoked without arguments or open servers');
+    const activeServers = servers.filter(server => server.active);
+    if (activeServers.length === 0) {
+      return callback(Error('close() invoked without arguments or open servers'));
     }
-    ports.forEach(port => {
-      console.info(`Closing mock API server on port ${port}`);
-      servers[port].close();
-      delete servers[port];
+    const tasks = activeServers.map(serverEntry => {
+      const { server, port } = serverEntry;
+
+      return (callback) => {
+        console.info(`Closing mock API server on port ${port}`);
+        return server.close(err => {
+          serverEntry.active = false;
+          callback(err);
+        });
+      };
     });
+    return parallel(tasks, callback);
   }
 }
 
-function throwIfMissingOptions(options) {
-  REQUIRED_CONFIG_OPTIONS.forEach(key => {
+function generateMissingParamsError(options, callback) {
+  if (typeof callback !== 'function') {
+    return new Error('Missing callback');
+  }
+
+  for (let i = 0; i < REQUIRED_CONFIG_OPTIONS.length; i++) {
+    const key = REQUIRED_CONFIG_OPTIONS[i];
     if (typeof options[key] !== 'string') {
-      throw Error(`Missing definition of ${key} in config file`);
+      return new Error(`Missing definition of ${key} in config file`);
     }
-  });
+  }
+
+  return null;
 }
 
 function setCorsMiddleware(app, whitelist) {
@@ -101,21 +122,30 @@ function setCorsMiddleware(app, whitelist) {
   app.use(corsMiddleware);
 }
 
-function startListening(app, ports) {
-  ports.forEach(port => {
-    if (SERVERS.hasOwnProperty(port)) {
-      console.warn(`Port ${port} specified more than once in config file`);
-      return;
-    }
-    const server = app.listen(port, (err) => {
-      if (err) {
-        console.error(err);
-      } else {
-        console.info(`Mock API server listening on port ${port}`);
+function startListening(app, ports, callback) {
+  const tasks = ports.map(port => {
+    return (callback) => {
+      const activeServers = SERVERS.filter(server => server.active);
+      if (activeServers.map(server => server.port).includes(port)) {
+        console.warn(`Port ${port} specified more than once in config file`);
+        return;
       }
-    });
-    SERVERS[port] = server;
+      const server = app.listen(port, (err) => {
+        if (err) {
+          callback(err);
+        } else {
+          console.info(`Mock API server listening on port ${port}`);
+          callback(null);
+        }
+      });
+      SERVERS.push({
+        port,
+        server,
+        active: true
+      });
+    }
   });
+  return parallel(tasks, callback);
 }
 
 function delegateRouteOverrides(app, overrides, encoding) {
