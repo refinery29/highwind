@@ -5,13 +5,13 @@ import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
 import { parse as urlParse } from 'url';
 import fs from 'fs';
-import async from 'async';
+import { parallel } from 'async';
 
 let PROD_ROOT_URL;
 let FIXTURES_PATH;
 let QUERY_STRING_IGNORE;
 let QUIET_MODE;
-const SERVERS = {};
+const SERVERS = [];
 const REQUIRED_CONFIG_OPTIONS = [
   'prodRootURL',
   'fixturesPath'
@@ -74,17 +74,24 @@ module.exports = {
     return startListening(app, ports, err => callback(err, result));
   },
 
-  close(clientServers) {
+  close(clientServers, callback) {
     const servers = clientServers || SERVERS;
-    const ports = Object.keys(servers);
-    if (!ports.length) {
-      throw Error('close() invoked without arguments or open servers');
+    const activeServers = servers.filter(server => server.active);
+    if (activeServers.length === 0) {
+      return callback(Error('close() invoked without arguments or open servers'));
     }
-    ports.forEach(port => {
-      console.info(`Closing mock API server on port ${port}`);
-      servers[port].close();
-      delete servers[port];
+    const tasks = activeServers.map(serverEntry => {
+      const { server, port } = serverEntry;
+
+      return (callback) => {
+        console.info(`Closing mock API server on port ${port}`);
+        return server.close(err => {
+          serverEntry.active = false;
+          callback(err);
+        });
+      };
     });
+    return parallel(tasks, callback);
   }
 }
 
@@ -120,7 +127,8 @@ function setCorsMiddleware(app, whitelist) {
 function startListening(app, ports, callback) {
   const tasks = ports.map(port => {
     return (callback) => {
-      if (SERVERS.hasOwnProperty(port)) {
+      const activeServers = SERVERS.filter(server => server.active);
+      if (activeServers.map(server => server.port).includes(port)) {
         console.warn(`Port ${port} specified more than once in config file`);
         return;
       }
@@ -132,10 +140,14 @@ function startListening(app, ports, callback) {
           callback(null);
         }
       });
-      SERVERS[port] = server;
+      SERVERS.push({
+        port,
+        server,
+        active: true
+      });
     }
   });
-  async.parallel(tasks, callback);
+  return parallel(tasks, callback);
 }
 
 function delegateRouteOverrides(app, overrides, encoding) {

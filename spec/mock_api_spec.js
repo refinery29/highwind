@@ -39,28 +39,22 @@ describe('start()', function() {
       });
     });
 
-    it('does not pass in an error when prodRootURL and fixturesPath are specified', function(done) {
+    it('does not pass in an error, and populates result.app and result.servers when prodRootURL and fixturesPath are specified', function(done) {
       start({
         prodRootURL: 'http://www.refinery29.com',
         fixturesPath: './fixtures'
       }, (err, result) => {
         expect(err).to.not.exist;
-        close(result.servers);
-        done();
-      });
-    });
-  });
 
-  it('calls the callback, passing in the instance of Express and an object of servers on success', function(done) {
-    const options = {
-      prodRootURL: 'http://www.refinery29.com',
-      fixturesPath: './fixtures'
-    };
-    start(options, (err, result) => {
-      expect(result.app).to.be.a('function');
-      expect(result.servers).to.be.an('object');
-      close(result.servers);
-      done();
+        const { app, servers } = result;
+        expect(app).to.be.a('function');
+        expect(servers).to.have.length(1);
+        expect(servers[0].port).to.equal(4567);
+        expect(servers[0].server).to.be.a('object');
+        expect(servers[0].active).to.be.true;
+
+        close(result.servers, done);
+      });
     });
   });
 
@@ -324,11 +318,31 @@ describe('start()', function() {
 });
 
 describe('close()', function() {
-  it('throws an error unless start() has been previously invoked', function() {
-    expect(close).to.throw(Error);
+  it('calls the callback with an error if there are no servers', function(done) {
+    close(null, (err) => {
+      expect(err).to.be.an('error');
+      done();
+    });
   });
 
-  describe('without arguments', function() {
+  describe('when there are only inactive servers', function(done) {
+    before(function(done) {
+      const ports = [5000, 5001, 5002];
+      const modOptions = Object.assign({}, DEFAULT_OPTIONS, { ports });
+      start(modOptions, (err, result) => {
+        close(result.servers, done);
+      });
+    });
+
+    it('calls the callback with an error if there are only inactive servers', function(done) {
+      close(null, (err) => {
+        expect(err).to.be.an('error');
+        done();
+      });
+    });
+  });
+
+  describe('without explicitly passing in servers', function() {
     let ports, servers;
 
     beforeEach(function(done) {
@@ -340,34 +354,34 @@ describe('close()', function() {
       });
     });
 
-    it('closes and garbage collects all servers instantiated by start()', function(done) {
-      const closedServers = [];
-
-      ports.forEach(port => servers[port].on('close', () => closedServers.push(port)));
-      close();
-      global.setTimeout(() => {
-        expect(ports).to.deep.equal(closedServers);
-        expect(servers).to.deep.equal({});
+    it('marks all running servers as inactive', function(done) {
+      close(null, () => {
+        expect(servers.filter(server => server.active)).to.have.length(0);
         done();
-      }, 1);
+      });
     });
   });
 
-  describe('with arguments', function() {
-    it('closes and garbage collects all servers passed to it', function(done) {
+  describe('explicitly passing in servers', function() {
+    it('marks all servers passed to it as inactive', function(done) {
       const mockServer = {
-        close() {}
+        close(callback) {
+          return callback();
+        }
       };
       spyOn(mockServer, 'close');
-      const servers = {
-        4567: mockServer
-      };
-      expect(mockServer.close).to.have.been.called;
-      close(servers);
-      global.setTimeout(() => {
-        expect(servers).to.deep.equal({});
+      const servers = [
+        {
+          port: 4567,
+          server: mockServer,
+          active: true
+        }
+      ];
+      close(servers, () => {
+        expect(mockServer.close).to.have.been.called;
+        expect(servers.filter(server => server.active)).to.have.length(0);
         done();
-      }, 1);
+      });
     });
   });
 });
