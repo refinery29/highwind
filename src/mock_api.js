@@ -96,8 +96,6 @@ module.exports = {
 }
 
 function generateMissingParamsError(options, callback) {
-  let error;
-
   if (typeof callback !== 'function') {
     return new Error('Missing callback');
   }

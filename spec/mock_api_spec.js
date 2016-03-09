@@ -23,8 +23,8 @@ describe('start()', function() {
   describe('Initialization', function() {
     it('calls the passed in callback with an error when fixturesPath is not specified', function(done) {
       start({
-        prodRootURL: 'http://www.refinery29.com',
-      }, (err, result) => {
+        prodRootURL: 'http://www.refinery29.com'
+      }, (err) => {
         expect(err).to.be.an('error');
         done();
       });
@@ -32,8 +32,8 @@ describe('start()', function() {
 
     it('calls the passed in callback with an error when prodRootUrl is not specified', function(done) {
       start({
-        fixturesPath: './fixtures',
-      }, (err, result) => {
+        fixturesPath: './fixtures'
+      }, (err) => {
         expect(err).to.be.an('error');
         done();
       });
@@ -325,7 +325,7 @@ describe('close()', function() {
     });
   });
 
-  describe('when there are only inactive servers', function(done) {
+  describe('when there are only inactive servers', function() {
     before(function(done) {
       const ports = [5000, 5001, 5002];
       const modOptions = Object.assign({}, DEFAULT_OPTIONS, { ports });
