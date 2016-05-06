@@ -3,19 +3,22 @@ import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
-import { parse as urlParse } from 'url';
+import url from 'url';
 import fs from 'fs';
 import { parallel } from 'async';
 
-let PROD_ROOT_URL;
-let FIXTURES_PATH;
-let QUERY_STRING_IGNORE;
-let QUIET_MODE;
 const SERVERS = [];
 const REQUIRED_CONFIG_OPTIONS = [
   'prodRootURL',
   'fixturesPath'
 ];
+const DEFAULT_OPTIONS = {
+  encoding: 'utf8',
+  ports: [4567],
+  queryStringIgnore: [],
+  quiet: false,
+  saveFixtures: true
+};
 
 module.exports = {
   start(options, callback) {
@@ -25,53 +28,34 @@ module.exports = {
     }
 
     const app = express();
-    const defaults = {
-      ports: [4567],
-      encoding: 'utf8',
-      queryStringIgnore: [],
-      quiet: false
-    };
-    const modOptions = Object.assign({}, defaults, options);
-    const {
-      prodRootURL,
-      corsWhitelist,
-      fixturesPath,
-      overrides,
-      queryStringIgnore,
-      ports,
-      encoding,
-      quiet
-    } = modOptions;
-
-    PROD_ROOT_URL = prodRootURL;
-    FIXTURES_PATH = fixturesPath;
-    QUERY_STRING_IGNORE = queryStringIgnore;
-    QUIET_MODE = quiet;
+    const settings = { ...DEFAULT_OPTIONS, ...options };
+    const { corsWhitelist, encoding, overrides, ports } = settings;
 
     if (corsWhitelist) {
       setCorsMiddleware(app, corsWhitelist);
     }
     if (overrides) {
-      delegateRouteOverrides(app, overrides, encoding);
+      delegateRouteOverrides(app, settings);
     }
 
     app.get('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
-      const fileName = getFileName(path);
+      const fileName = getFileName(path, settings);
       fs.readFile(fileName, encoding, (err, data) => {
         if (err) {
-          recordFromProd(req, res);
+          fetchResponse(res, { ...settings, fileName, path });
         } else {
-          serveLocalResponse(res, fileName, data, { quiet: QUIET_MODE });
+          serveResponse(res, { ...settings, fileName, data });
         }
       });
     });
 
     const result = {
-      app: app,
+      app,
       servers: SERVERS
     };
-    return startListening(app, ports, err => callback(err, result));
+
+    return startListening(app, ports, (err) => callback(err, result));
   },
 
   close(clientServers, callback) {
@@ -148,13 +132,12 @@ function startListening(app, ports, callback) {
   return parallel(tasks, callback);
 }
 
-function delegateRouteOverrides(app, overrides, encoding) {
+function delegateRouteOverrides(app, options) {
+  const { overrides, encoding, quiet } = options;
   const methods = ['get', 'post', 'put', 'delete', 'all'];
   const defaults = {
     status: 200,
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: { 'Content-Type': 'application/json' }
   };
   const jsonMiddleware = [
     bodyParser.json(),
@@ -167,7 +150,7 @@ function delegateRouteOverrides(app, overrides, encoding) {
     }
     overrides[method].forEach(params => {
       let fixture;
-      const routeParams = Object.assign({}, defaults, params);
+      const routeParams = { ...defaults, ...params };
       const { route, status, response, headers, mergeParams } = routeParams;
       const responseIsJson = /(javascript|json)/.test(headers['Content-Type']);
 
@@ -176,7 +159,7 @@ function delegateRouteOverrides(app, overrides, encoding) {
       }
 
       if (!response) {
-        const fileName = getFileName(route);
+        const fileName = getFileName(route, options);
         fs.readFile(fileName, encoding, (err, data) => {
           if (err) {
             throw Error(`Route override specified for '${route}' with no response or matching fixture`);
@@ -191,7 +174,7 @@ function delegateRouteOverrides(app, overrides, encoding) {
       }
 
       app[method].call(app, route, jsonMiddleware, (req, res) => {
-        if (!QUIET_MODE) {
+        if (!quiet) {
           console.info(`==> 📁  Serving local fixture for ${method.toUpperCase()} -> '${route}'`);
         }
         const payload = responseIsJson && typeof mergeParams === 'function'
@@ -206,14 +189,14 @@ function delegateRouteOverrides(app, overrides, encoding) {
   });
 }
 
-function recordFromProd(req, res) {
+function fetchResponse(res, options) {
   let responseIsJson;
-  const path = getURLPathWithQueryString(req);
-  const prodURL = getProdURL(path);
+  const { prodRootURL, quiet, saveFixtures, path, fileName } = options;
+  const prodURL = prodRootURL + path;
   const responseIsJsonp = prodURL.match(/callback\=([^\&]+)/);
 
-  console.info(`==> 📡  GET ${PROD_ROOT_URL} -> ${path}`);
-  fetch(prodURL)
+  console.info(`==> 📡  GET ${prodRootURL} -> ${path}`);
+  fetch(prodRootURL + path)
     .then(response => {
       if (response.ok) {
         console.info(`==> 📡  STATUS ${response.status}`);
@@ -232,18 +215,10 @@ function recordFromProd(req, res) {
       }
     })
     .then(response => {
-      const fileName = getFileName(path);
-      const data = responseIsJson
-        ? JSON.stringify(response)
-        : response;
-
-      fs.writeFile(fileName, data, (err) => {
-        if (err) {
-          throw Error(`Couldn't write response locally, received fs error: '${err}'`)
-        }
-        console.info(`==> 💾  Saved response to ${fileName}`);
-      });
-      serveLocalResponse(res, fileName, data, { quiet: true });
+      if (saveFixtures) {
+        saveFixture(fileName, response, responseIsJson);
+      }
+      serveResponse(res, { ...options, newResponse: true });
     })
     .catch(err => {
       console.error(`==> ⛔️  ${err}`);
@@ -251,9 +226,9 @@ function recordFromProd(req, res) {
     });
 }
 
-function serveLocalResponse(res, fileName, data, options = { quiet: false }) {
-  const { quiet } = options;
-  if (quiet !== true) {
+function serveResponse(res, options) {
+  const { data, fileName, quiet, newResponse } = options;
+  if (!quiet && !newResponse) {
     console.info(`==> 📁  Serving local response from ${fileName}`);
   }
   if (fileName.match(/callback\=/)) {
@@ -271,20 +246,31 @@ function serveLocalResponse(res, fileName, data, options = { quiet: false }) {
   }
 }
 
-function getFileName(path) {
-  const fileNameInDirectory = QUERY_STRING_IGNORE
+function saveFixture(fileName, response, responseIsJson) {
+  const data = responseIsJson
+    ? JSON.stringify(response)
+    : response;
+
+  fs.writeFile(fileName, data, (err) => {
+    if (err) {
+      throw Error(`Couldn't write response locally, received fs error: '${err}'`)
+    }
+    console.info(`==> 💾  Saved response to ${fileName}`);
+  });
+}
+
+function getFileName(path, options) {
+  const { queryStringIgnore, fixturesPath } = options;
+  const fileNameInDirectory = queryStringIgnore
     .reduce((fileName, regex) => fileName.replace(regex, ''), path)
     .replace(/\//, '')
     .replace(/\//g, ':');
-  return `${FIXTURES_PATH}/${fileNameInDirectory}.json`;
-}
-
-function getProdURL(path) {
-  return PROD_ROOT_URL + path;
+  return `${fixturesPath}/${fileNameInDirectory}.json`;
 }
 
 function getURLPathWithQueryString(req) {
-  const queryString = urlParse(req.url).query;
+  const queryString = url.parse(req.url).query;
+
   if (queryString && queryString.length > 0) {
     return req.path + '?' + queryString;
   } else {
