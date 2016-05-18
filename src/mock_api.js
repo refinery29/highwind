@@ -191,7 +191,7 @@ function delegateRouteOverrides(app, options) {
 
 function fetchResponse(res, options) {
   let responseIsJson;
-  const { prodRootURL, quiet, saveFixtures, path, fileName } = options;
+  const { prodRootURL, saveFixtures, path, fileName } = options;
   const prodURL = prodRootURL + path;
   const responseIsJsonp = prodURL.match(/callback\=([^\&]+)/);
 
