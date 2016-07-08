@@ -38,12 +38,12 @@ module.exports = {
       delegateRouteOverrides(app, settings);
     }
 
-    app.get('*', (req, res) => {
+    app.all('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
       const fileName = getFileName(path, settings);
       fs.readFile(fileName, encoding, (err, data) => {
         if (err) {
-          fetchResponse(res, { ...settings, fileName, path });
+          fetchResponse(req, res, { ...settings, fileName, path });
         } else {
           serveResponse(res, { ...settings, fileName, data });
         }
@@ -189,7 +189,12 @@ function delegateRouteOverrides(app, options) {
   });
 }
 
-function fetchResponse(res, options) {
+function fetchResponse(req, res, options) {
+  if (req.method !== 'GET') {
+    console.error(`==> ⛔️  Couldn't complete fetch with non-GET method`);
+    return res.status(500).end();
+  }
+
   let responseIsJson;
   const { prodRootURL, saveFixtures, path, fileName } = options;
   const prodURL = prodRootURL + path;
