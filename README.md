@@ -62,7 +62,7 @@ These are dropped in to the options object passed to `highwind.start()` during i
 * `corsWhitelist` *(array of string)*:
   * An array of URLs dispatched to Express's CORS middleware.
 * `overrides` *(object)*:
-  * HTTP methods for which specific routes should be overridden. Each property of this object should have a key specifying an HTTP method known to Express's Application object (`get`, `post`, `put`, `delete`, `all`). Examples follow below.
+  * HTTP methods for which specific routes should be overridden. Each property of this object should have a key specifying an HTTP method known to Express's `app` object (`get`, `post`, `put`, `delete`, `all`). Examples follow below.
 * `queryStringIgnore` *(array of RegExp)*:
   * **Default:** `[]`
   * Query string expressions to be ignored when writing/reading API responses.
@@ -76,6 +76,9 @@ These are dropped in to the options object passed to `highwind.start()` during i
 * `quiet`: *(boolean)*
   * **Default:** `false`.
   * Silences console output when an API response is being served locally. One possible use case is feature tests, in which you'll (ideally) be serving everything locally, to minimize spec pollution.
+* `saveFixtures`: *(boolean)*
+  * **Default:** `true`.
+  * Toggles persisting responses from the production API as local fixtures.
 
 ## HTTP Route Overrides
 Here are some examples of HTTP route overrides and their use cases.
