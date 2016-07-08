@@ -69,13 +69,87 @@ describe('start()', function() {
         const responsePath = RESPONSES_DIR + route + '.json';
         const responsePathWithCallback = RESPONSES_DIR + route + JSONP_CALLBACK + '.json';
 
-        describe('When the saveFixtures setting is set to true', function() {
-          beforeEach(function(done) {
-            nock(PROD_ROOT_URL)
-              .get(route)
-              .query(true)
-              .reply(200, response);
+        describe('When the request method is GET', function() {
 
+          describe('And the saveFixtures setting is set to true', function() {
+            beforeEach(function(done) {
+              nock(PROD_ROOT_URL)
+                .get(route)
+                .query(true)
+                .reply(200, response);
+
+              start(DEFAULT_OPTIONS, (err, result) => {
+                mockAPI = result;
+                done();
+              });
+            });
+
+            afterEach(function() {
+              close(mockAPI.servers);
+              [responsePath, responsePathWithCallback].forEach(path => {
+                try {
+                  fs.accessSync(path, fs.F_OK);
+                } catch (e) {
+                  return;
+                }
+                fs.unlinkSync(path);
+              });
+            });
+
+            it('persists and responds with a response from the production API', function(done) {
+              request(mockAPI.app)
+                .get(route)
+                .expect('Content-Type', /application\/json/)
+                .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
+            });
+
+            it('truncates ignored query string expressions in the persisted response filename', function(done) {
+              request(mockAPI.app)
+                .get(route + IGNORED_QUERY_PARAMS)
+                .expect('Content-Type', /application\/json/)
+                .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
+            });
+
+            it('renders the endpoint as JSONP when a callback is specified in the query string', function(done) {
+              request(mockAPI.app)
+                .get(route + JSONP_CALLBACK)
+                .expect('Content-Type', /application\/javascript/)
+                .expect(200, response, () => fs.access(responsePathWithCallback, fs.F_OK, done));
+            });
+          });
+
+          describe('And the saveFixtures setting is set to false', function() {
+            beforeEach(function(done) {
+              nock(PROD_ROOT_URL)
+                .get(route)
+                .query(true)
+                .reply(200, response);
+
+              start({ ...DEFAULT_OPTIONS, saveFixtures: false }, (err, result) => {
+                mockAPI = result;
+                done();
+              });
+            });
+
+            afterEach(function() {
+              close(mockAPI.servers);
+            });
+
+            it('responses with a response from the production API and does not persist the response', function(done) {
+              request(mockAPI.app)
+                .get(route)
+                .expect('Content-Type', /application\/json/)
+                .expect(200, response, () => fs.access(responsePath, fs.F_OK, (err) => {
+                  if (err) {
+                    done();
+                  }
+                }));
+            });
+          });
+        });
+
+        describe('When the request method is not GET', function() {
+          beforeEach(function(done) {
             start(DEFAULT_OPTIONS, (err, result) => {
               mockAPI = result;
               done();
@@ -84,64 +158,12 @@ describe('start()', function() {
 
           afterEach(function() {
             close(mockAPI.servers);
-            [responsePath, responsePathWithCallback].forEach(path => {
-              try {
-                fs.accessSync(path, fs.F_OK);
-              } catch (e) {
-                return;
-              }
-              fs.unlinkSync(path);
-            });
           });
 
-          it('persists and responds with a response from the production API', function(done) {
+          it('does not call the production API and returns an error', function(done) {
             request(mockAPI.app)
-              .get(route)
-              .expect('Content-Type', /application\/json/)
-              .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
-          });
-
-          it('truncates ignored query string expressions in the persisted response filename', function(done) {
-            request(mockAPI.app)
-              .get(route + IGNORED_QUERY_PARAMS)
-              .expect('Content-Type', /application\/json/)
-              .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
-          });
-
-          it('renders the endpoint as JSONP when a callback is specified in the query string', function(done) {
-            request(mockAPI.app)
-              .get(route + JSONP_CALLBACK)
-              .expect('Content-Type', /application\/javascript/)
-              .expect(200, response, () => fs.access(responsePathWithCallback, fs.F_OK, done));
-          });
-        });
-
-        describe('When the saveFixtures setting is set to false', function() {
-          beforeEach(function(done) {
-            nock(PROD_ROOT_URL)
-              .get(route)
-              .query(true)
-              .reply(200, response);
-
-            start({ ...DEFAULT_OPTIONS, saveFixtures: false }, (err, result) => {
-              mockAPI = result;
-              done();
-            });
-          });
-
-          afterEach(function() {
-            close(mockAPI.servers);
-          });
-
-          it('responses with a response from the production API and does not persist the response', function(done) {
-            request(mockAPI.app)
-              .get(route)
-              .expect('Content-Type', /application\/json/)
-              .expect(200, response, () => fs.access(responsePath, fs.F_OK, (err) => {
-                if (err) {
-                  done();
-                }
-              }));
+              .put(route)
+              .expect(500, '', done);
           });
         });
       });
