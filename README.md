@@ -79,6 +79,9 @@ These are dropped in to the options object passed to `highwind.start()` during i
 * `saveFixtures`: *(boolean)*
   * **Default:** `true`.
   * Toggles persisting responses from the production API as local fixtures.
+* `latency`: *(number)*
+  * **Default:** 0
+  * Number of milliseconds to delay responses in order to simulate latency.
 
 ## HTTP Route Overrides
 Here are some examples of HTTP route overrides and their use cases.

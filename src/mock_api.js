@@ -14,6 +14,7 @@ const REQUIRED_CONFIG_OPTIONS = [
 ];
 const DEFAULT_OPTIONS = {
   encoding: 'utf8',
+  latency: 0,
   ports: [4567],
   queryStringIgnore: [],
   quiet: false,
@@ -29,10 +30,13 @@ module.exports = {
 
     const app = express();
     const settings = { ...DEFAULT_OPTIONS, ...options };
-    const { corsWhitelist, encoding, overrides, ports } = settings;
+    const { corsWhitelist, encoding, latency, overrides, ports } = settings;
 
     if (corsWhitelist) {
       setCorsMiddleware(app, corsWhitelist);
+    }
+    if (isValidDuration(latency)) {
+      simulateLatency(app, latency);
     }
     if (overrides) {
       delegateRouteOverrides(app, settings);
@@ -79,6 +83,10 @@ module.exports = {
   }
 }
 
+function isValidDuration(latency) {
+  return Number.isFinite(latency) && latency > 0;
+}
+
 function generateMissingParamsError(options, callback) {
   if (typeof callback !== 'function') {
     return new Error('Missing callback');
@@ -104,6 +112,13 @@ function setCorsMiddleware(app, whitelist) {
   };
   const corsMiddleware = cors(corsOptions);
   app.use(corsMiddleware);
+}
+
+function simulateLatency(app, latency) {
+  const latencyMiddleware = (_req, _res, next) =>
+    global.setTimeout(next, latency);
+
+  app.use(latencyMiddleware);
 }
 
 function startListening(app, ports, callback) {
