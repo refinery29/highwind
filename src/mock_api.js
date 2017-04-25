@@ -20,6 +20,7 @@ const DEFAULT_OPTIONS = {
   quiet: false,
   saveFixtures: true
 };
+const JSON_CONTENT_TYPE_REGEXP = /javascript|json/;
 
 module.exports = {
   start(options, callback) {
@@ -92,8 +93,7 @@ function generateMissingParamsError(options, callback) {
     return new Error('Missing callback');
   }
 
-  for (let i = 0; i < REQUIRED_CONFIG_OPTIONS.length; i++) {
-    const key = REQUIRED_CONFIG_OPTIONS[i];
+  for (const key of REQUIRED_CONFIG_OPTIONS) {
     if (typeof options[key] !== 'string') {
       return new Error(`Missing definition of ${key} in config file`);
     }
@@ -166,8 +166,15 @@ function delegateRouteOverrides(app, options) {
     overrides[method].forEach(params => {
       let fixture;
       const routeParams = { ...defaults, ...params };
-      const { route, status, response, headers, mergeParams } = routeParams;
-      const responseIsJson = /(javascript|json)/.test(headers['Content-Type']);
+      const {
+        route,
+        status,
+        response,
+        headers,
+        mergeParams,
+        withQueryParams: queryParams = {}
+      } = routeParams;
+      const responseIsJson = JSON_CONTENT_TYPE_REGEXP.test(headers['Content-Type']);
 
       if (!route) {
         throw Error('Encountered an HTTP method override without a specified route');
@@ -188,9 +195,14 @@ function delegateRouteOverrides(app, options) {
         fixture = response;
       }
 
-      app[method].call(app, route, jsonMiddleware, (req, res) => {
+      app[method].call(app, route, jsonMiddleware, (req, res, next) => {
         if (!quiet) {
           console.info(`==> 📁  Serving local fixture for ${method.toUpperCase()} -> '${route}'`);
+        }
+        for (const [param, value] of Object.entries(queryParams)) {
+          if (req.query[param] !== value) {
+            return next();
+          }
         }
         const payload = responseIsJson && typeof mergeParams === 'function'
           ? mergeParams(JSON.parse(fixture), req.body)

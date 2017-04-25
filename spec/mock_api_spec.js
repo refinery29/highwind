@@ -332,6 +332,57 @@ describe('start()', function() {
         });
       });
 
+      describe('And there is a JSON response with query param expectations specified in the override', function() {
+        let mockAPI;
+        const route = '/overridden_route';
+        const response = { status: 'overridden response' };
+
+        const modOptions = {
+          ...DEFAULT_OPTIONS,
+          overrides: {
+            get: [
+              {
+                route,
+                response,
+                withQueryParams: { foo: 'bar' }
+              }
+            ]
+          }
+        };
+
+        before(function(done) {
+          nock(PROD_ROOT_URL)
+            .get(route)
+            .replyWithError('Fake API hit the production API');
+
+          start(modOptions, (err, result) => {
+            mockAPI = result;
+            done();
+          });
+        });
+
+        after(function() {
+          close(mockAPI.servers);
+        });
+
+        describe('when the query params are specified in the route', function() {
+          it('responds with the specified response, status 200, and does not hit the production API', function(done) {
+            request(mockAPI.app)
+              .get(route + '?foo=bar')
+              .expect('Content-Type', /application\/json/)
+              .expect(200, response, done);
+          });
+        });
+
+        describe('when the query params are not specified in the route', function() {
+          it('does not respond with the specified response, status 200, and does not hit the production API', function(done) {
+            request(mockAPI.app)
+              .get(route + '?foo=quux')
+              .expect(500, '', done);
+          });
+        });
+      });
+
       describe('And there is a JSON response with a mergeParmas callback specified in the override', function() {
         let mockAPI;
         const route = '/overridden_route';

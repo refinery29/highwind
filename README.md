@@ -139,6 +139,24 @@ This configures the mock API to respond to `get` requests for `/legacy_route` wi
 
 N.B.: Under the hood, the `headers` object is passed to Express's `response.set()` method. That means you can specify any HTTP header key/value pairs you'd like here, not just `'Content-Type'`.
 
+### Serving a JSON response with dynamic query params
+```js
+overrides: {
+  get: [
+    {
+      route: '/api/search',
+      withQueryParams: { query: 'foo' },
+      response: {
+        keyword: 'foo',
+        result_count: 15
+      },
+      status: 200
+    }
+  ]
+}
+```
+This serves the specified response _only_ when the query string matches the params specified in the `withQueryParams` object; in all other cases, it defers to the default response.
+
 ## Serving a JSONP response
 
 Highwind serves all routes with a `callback` specified in the query string as JSONP by default. This is easy to disable, though, either by specifying a non-JS `'Content-Type'` header in an override for a specific route or by adding something like `/callback\=([^\&]+)/` to your `queryStringIgnore` collection.
