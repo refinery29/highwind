@@ -70,7 +70,6 @@ describe('start()', function() {
         const responsePathWithCallback = RESPONSES_DIR + route + JSONP_CALLBACK + '.json';
 
         describe('When the request method is GET', function() {
-
           describe('And the saveFixtures setting is set to true', function() {
             beforeEach(function(done) {
               nock(PROD_ROOT_URL)
@@ -100,21 +99,33 @@ describe('start()', function() {
               request(mockAPI.app)
                 .get(route)
                 .expect('Content-Type', /application\/json/)
-                .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
+                .expect(200)
+                .end((err, res) => {
+                  expect(res.text).to.equal(JSON.stringify(response));
+                  fs.access(responsePath, fs.F_OK, done);
+                });
             });
 
             it('truncates ignored query string expressions in the persisted response filename', function(done) {
               request(mockAPI.app)
                 .get(route + IGNORED_QUERY_PARAMS)
                 .expect('Content-Type', /application\/json/)
-                .expect(200, response, () => fs.access(responsePath, fs.F_OK, done));
+                .expect(200)
+                .end((err, res) => {
+                  expect(res.text).to.equal(JSON.stringify(response));
+                  fs.access(responsePath, fs.F_OK, done);
+                });
             });
 
             it('renders the endpoint as JSONP when a callback is specified in the query string', function(done) {
               request(mockAPI.app)
                 .get(route + JSONP_CALLBACK)
                 .expect('Content-Type', /application\/javascript/)
-                .expect(200, response, () => fs.access(responsePathWithCallback, fs.F_OK, done));
+                .expect(200)
+                .end((err, res) => {
+                  expect(res.text).to.equal(JSON.stringify(response));
+                  fs.access(responsePathWithCallback, fs.F_OK, done);
+                });
             });
           });
 
@@ -144,8 +155,11 @@ describe('start()', function() {
                   expect(res.text).to.equal(JSON.stringify(response));
                   fs.access(responsePath, fs.F_OK, (err) => {
                     if (err) {
-                      done();
+                      return done();
                     }
+                    throw new Error(
+                      'Saved a fixture with saveFixtures set to false'
+                    );
                   });
                 });
             });
