@@ -139,11 +139,15 @@ describe('start()', function() {
               request(mockAPI.app)
                 .get(route)
                 .expect('Content-Type', /application\/json/)
-                .expect(200, response, () => fs.access(responsePath, fs.F_OK, (err) => {
-                  if (err) {
-                    done();
-                  }
-                }));
+                .expect(200)
+                .end((err, res) => {
+                  expect(res.text).to.equal(JSON.stringify(response));
+                  fs.access(responsePath, fs.F_OK, (err) => {
+                    if (err) {
+                      done();
+                    }
+                  });
+                });
             });
           });
         });
