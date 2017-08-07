@@ -1,6 +1,6 @@
 {
   "name": "highwind",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Mock API express server",
   "main": "lib/mock_api.js",
   "scripts": {

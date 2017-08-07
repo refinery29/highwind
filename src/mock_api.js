@@ -246,11 +246,11 @@ function fetchResponse(req, res, options) {
         throw Error(`Couldn't complete fetch with Content-Type '${contentType}'`);
       }
     })
-    .then(response => {
+    .then(data => {
       if (saveFixtures) {
-        saveFixture(fileName, response, responseIsJson);
+        saveFixture(fileName, data, responseIsJson);
       }
-      serveResponse(res, { ...options, newResponse: true });
+      serveResponse(res, { ...options, data, newResponse: true });
     })
     .catch(err => {
       console.error(`==> ⛔️  ${err}`);
