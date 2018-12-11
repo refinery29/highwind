@@ -186,7 +186,7 @@ describe('start()', function() {
         });
       });
 
-      describe('And there is a JSON response matching a given route', function() {
+      describe('And there is a JSON file matching a given route', function() {
         let mockAPI;
         const route = '/persisted_json_route';
         const responsePath = RESPONSES_DIR + route + '.json';
@@ -211,6 +211,7 @@ describe('start()', function() {
         });
 
         it('serves the locally persisted response as JSON and does not hit the production API', function(done) {
+          console.log(request(mockAPI.app).get(route));
           request(mockAPI.app)
             .get(route)
             .expect('Content-Type', /application\/json/)
@@ -232,7 +233,44 @@ describe('start()', function() {
         });
       });
 
-      describe('And there is a non-JSON response matching a given route', function() {
+      describe('And there is a JS file matching a given route', function() {
+        let mockAPI;
+        const route = '/persisted_js_route';
+        const responsePath = RESPONSES_DIR + route + '.js';
+        const jsResponse = require(responsePath).default();
+
+        beforeEach(function(done) {
+          nock(PROD_ROOT_URL)
+            .get(route)
+            .query(true)
+            .replyWithError('Fake API hit the production API');
+
+          start(DEFAULT_OPTIONS, (err, result) => {
+            mockAPI = result;
+            done();
+          });
+        });
+
+        afterEach(function() {
+          close(mockAPI.servers);
+        });
+
+        it('evaluates the JS then serves the output as JSON and does not hit the production API', function(done) {
+          request(mockAPI.app)
+            .get(route)
+            .expect('Content-Type', /application\/json/)
+            .expect(200, jsResponse, done);
+        });
+
+        it('ignores truncated query string expressions when identifying the persisted response filename and does not hit the production API', function(done) {
+          request(mockAPI.app)
+            .get(route + IGNORED_QUERY_PARAMS)
+            .expect('Content-Type', /application\/json/)
+            .expect(200, jsResponse, done);
+        });
+      });
+
+      describe('And there is a non-JSON/non-JS file matching a given route', function() {
         let mockAPI;
         const route = '/persisted_html_route';
         const responsePath = RESPONSES_DIR + route + '.json';

@@ -36,23 +36,30 @@ module.exports = {
     if (corsWhitelist) {
       setCorsMiddleware(app, corsWhitelist);
     }
+
     if (isValidDuration(latency)) {
       simulateLatency(app, latency);
     }
+
     if (overrides) {
       delegateRouteOverrides(app, settings);
     }
 
     app.all('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
-      const fileName = getFileName(path, settings);
-      fs.readFile(fileName, encoding, (err, data) => {
-        if (err) {
-          fetchResponse(req, res, { ...settings, fileName, path });
-        } else {
-          serveResponse(res, { ...settings, fileName, data });
-        }
-      });
+      const jsonFileName = getFileName(path, settings, 'json');
+      const jsFileName = getFileName(path, settings, 'js');
+      // Handle JS or JSON file request, otherwise fetch the fixture.
+      if(fs.existsSync(jsonFileName)) {
+        fs.readFile(jsonFileName, encoding, (err, data) => {
+          serveResponse(res, data, jsFileName, { ...settings });
+        });
+      } else if(fs.existsSync(jsFileName)) {
+        const data = require(jsFileName).default();
+        serveResponse(res, data, jsFileName, { ...settings });
+      } else {
+        fetchResponse(req, res, { ...settings, jsonFileName, path });
+      }
     });
 
     const result = {
@@ -147,7 +154,9 @@ function startListening(app, ports, callback) {
   return parallel(tasks, callback);
 }
 
+
 function delegateRouteOverrides(app, options) {
+  // Setup default values
   const { overrides, encoding, quiet } = options;
   const methods = ['get', 'post', 'put', 'delete', 'all'];
   const defaults = {
@@ -160,9 +169,12 @@ function delegateRouteOverrides(app, options) {
   ];
 
   Object.keys(overrides).forEach(method => {
+    // Check for invalid protocol
     if (!methods.includes(method)) {
       throw Error(`Couldn't override route with invalid HTTP method: '${method}'`);
     }
+
+    // Iterate through get, post, etc
     overrides[method].forEach(params => {
       let fixture;
       const routeParams = { ...defaults, ...params };
@@ -181,7 +193,7 @@ function delegateRouteOverrides(app, options) {
       }
 
       if (!response) {
-        const fileName = getFileName(route, options);
+        const fileName = getFileName(route, options, 'json');
         fs.readFile(fileName, encoding, (err, data) => {
           if (err) {
             throw Error(`Route override specified for '${route}' with no response or matching fixture`);
@@ -228,6 +240,7 @@ function fetchResponse(req, res, options) {
   const responseIsJsonp = prodURL.match(/callback\=([^\&]+)/);
 
   console.info(`==> 📡  GET ${prodRootURL} -> ${path}`);
+
   fetch(prodRootURL + path)
     .then(response => {
       if (response.ok) {
@@ -250,7 +263,7 @@ function fetchResponse(req, res, options) {
       if (saveFixtures) {
         saveFixture(fileName, data, responseIsJson);
       }
-      serveResponse(res, { ...options, data, newResponse: true });
+      serveResponse(res, data, fileName, { ...options, newResponse: true });
     })
     .catch(err => {
       console.error(`==> ⛔️  ${err}`);
@@ -258,18 +271,24 @@ function fetchResponse(req, res, options) {
     });
 }
 
-function serveResponse(res, options) {
-  const { data, fileName, quiet, newResponse } = options;
+function serveResponse(res, data, fileName, options) {
+  const { quiet, newResponse } = options;
+
   if (!quiet && !newResponse) {
     console.info(`==> 📁  Serving local response from ${fileName}`);
   }
+
   if (fileName.match(/callback\=/)) {
     res
       .set({ 'Content-Type': 'application/javascript' })
       .send(data);
   } else {
     try {
-      res.json(JSON.parse(data));
+      if (fileName.match(/.json/)) {
+        res.json(JSON.parse(data)); // Convert JSON data to JS object first
+      } else {
+        res.json(data); // Don't convert data, we already have a JS object
+      }
     } catch (e) {
       res
         .set({ 'Content-Type': 'text/html' })
@@ -291,13 +310,13 @@ function saveFixture(fileName, response, responseIsJson) {
   });
 }
 
-function getFileName(path, options) {
+function getFileName(path, options, ext) {
   const { queryStringIgnore, fixturesPath } = options;
   const fileNameInDirectory = queryStringIgnore
     .reduce((fileName, regex) => fileName.replace(regex, ''), path)
     .replace(/\//, '')
     .replace(/\//g, ':');
-  return `${fixturesPath}/${fileNameInDirectory}.json`;
+  return `${fixturesPath}/${fileNameInDirectory}.${ext}`;
 }
 
 function getURLPathWithQueryString(req) {
