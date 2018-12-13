@@ -47,18 +47,24 @@ module.exports = {
 
     app.all('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
-      const jsonFileName = getFileName(path, settings, 'json');
-      const jsFileName = getFileName(path, settings, 'js');
-      // Handle JS or JSON file request, otherwise fetch the fixture.
+      const jsonFileName = getFileName(path, 'json', settings);
+      const jsFileName = getFileName(path, 'js', settings);
+      const htmlFileName = getFileName(path, 'html', settings);
+      // Handles JS, JSON, and HTML.
+      // If the file is not found, fetch a JSON response from production.
       if(fs.existsSync(jsonFileName)) {
         fs.readFile(jsonFileName, encoding, (err, data) => {
-          serveResponse(res, data, jsFileName, { ...settings });
+          serveResponse(res, data, jsonFileName, { ...settings });
         });
       } else if(fs.existsSync(jsFileName)) {
         const data = require(jsFileName).default();
         serveResponse(res, data, jsFileName, { ...settings });
+      } else if(fs.existsSync(htmlFileName)) {
+        fs.readFile(htmlFileName, encoding, (err, data) => {
+          serveResponse(res, data, htmlFileName, { ...settings });
+        });
       } else {
-        fetchResponse(req, res, { ...settings, jsonFileName, path });
+        fetchResponse(req, res, jsonFileName, { ...settings, path });
       }
     });
 
@@ -228,19 +234,18 @@ function delegateRouteOverrides(app, options) {
   });
 }
 
-function fetchResponse(req, res, options) {
+function fetchResponse(req, res, fileName, options) {
   if (req.method !== 'GET') {
     console.error(`==> ⛔️  Couldn't complete fetch with non-GET method`);
     return res.status(500).end();
   }
 
   let responseIsJson;
-  const { prodRootURL, saveFixtures, path, fileName } = options;
+  const { prodRootURL, saveFixtures, path } = options;
   const prodURL = prodRootURL + path;
   const responseIsJsonp = prodURL.match(/callback\=([^\&]+)/);
 
   console.info(`==> 📡  GET ${prodRootURL} -> ${path}`);
-
   fetch(prodRootURL + path)
     .then(response => {
       if (response.ok) {
@@ -279,22 +284,29 @@ function serveResponse(res, data, fileName, options) {
   }
 
   if (fileName.match(/callback\=/)) {
-    res
+    return res
       .set({ 'Content-Type': 'application/javascript' })
       .send(data);
-  } else {
-    try {
-      if (fileName.match(/.json/)) {
-        res.json(JSON.parse(data)); // Convert JSON data to JS object first
-      } else {
-        res.json(data); // Don't convert data, we already have a JS object
-      }
-    } catch (e) {
-      res
-        .set({ 'Content-Type': 'text/html' })
-        .send(data);
-    }
   }
+
+  if (fileName.match(/.json/)) {
+    if (newResponse) {
+      return res.json(JSON.parse(JSON.stringify(data)));
+    }
+    return res.json(JSON.parse(data));
+  }
+
+  if (fileName.match(/.js/)) {
+    return res.json(data);
+  }
+
+  if (fileName.match(/.html/)) {
+    return res
+      .set({ 'Content-Type': 'text/html' })
+      .send(data);
+  }
+
+  console.error('⛔️ Filename extension was not recognized. Please check that your fixture ends in .js, .json, or .html!');
 }
 
 function saveFixture(fileName, response, responseIsJson) {
@@ -302,20 +314,22 @@ function saveFixture(fileName, response, responseIsJson) {
     ? JSON.stringify(response)
     : response;
 
-  fs.writeFile(fileName, data, (err) => {
-    if (err) {
-      throw Error(`Couldn't write response locally, received fs error: '${err}'`)
-    }
-    console.info(`==> 💾  Saved response to ${fileName}`);
-  });
+  try {
+    fs.writeFile(fileName, data, () => {
+      console.info(`==> 💾  Saved response to ${fileName}`);
+    });
+  } catch (e) {
+    throw Error(`Couldn't write response locally, received fs error: '${e}'`)
+  }
 }
 
-function getFileName(path, options, ext) {
+function getFileName(path, ext, options) {
   const { queryStringIgnore, fixturesPath } = options;
   const fileNameInDirectory = queryStringIgnore
     .reduce((fileName, regex) => fileName.replace(regex, ''), path)
     .replace(/\//, '')
     .replace(/\//g, ':');
+
   return `${fixturesPath}/${fileNameInDirectory}.${ext}`;
 }
 

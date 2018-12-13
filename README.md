@@ -157,6 +157,25 @@ overrides: {
 ```
 This serves the specified response _only_ when the query string matches the params specified in the `withQueryParams` object; in all other cases, it defers to the default response.
 
+## Serving a JSON response via JS
+
+Highwind recognizes when a fixture file ends in `.js` instead of `.json`. When this is the case, Highwind evaluates the `export default` function of that file and attempts to return its output as JSON.
+
+This can be useful for creating many fixtures based off of a few base fixtures without the hassle of copying and maintaining 100s of lines of identical JSON in each fixture file.
+
+```
+// Import a complex JSON fixture
+import baseJSON from './persisted_json_route.json';
+
+export default () => {
+  // Change important values here
+  baseJSON.title = "I am overriding the title value";
+
+  // Return the modified JSON back to Highwind
+  return baseJSON;
+}
+```
+
 ## Serving a JSONP response
 
 Highwind serves all routes with a `callback` specified in the query string as JSONP by default. This is easy to disable, though, either by specifying a non-JS `'Content-Type'` header in an override for a specific route or by adding something like `/callback\=([^\&]+)/` to your `queryStringIgnore` collection.

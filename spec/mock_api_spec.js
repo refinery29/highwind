@@ -65,7 +65,8 @@ describe('start()', function() {
       describe('And there is no response matching a given route', function() {
         let mockAPI;
         const route = '/non_persisted_json_route';
-        const response = { source: 'Remote API' };
+        const response = JSON.stringify({'source': 'Remote API'});
+
         const responsePath = RESPONSES_DIR + route + '.json';
         const responsePathWithCallback = RESPONSES_DIR + route + JSONP_CALLBACK + '.json';
 
@@ -75,7 +76,9 @@ describe('start()', function() {
               nock(PROD_ROOT_URL)
                 .get(route)
                 .query(true)
-                .reply(200, response);
+                .reply(200, response, {
+                  'Content-Type': 'application/json'
+                });
 
               start(DEFAULT_OPTIONS, (err, result) => {
                 mockAPI = result;
@@ -101,7 +104,7 @@ describe('start()', function() {
                 .expect('Content-Type', /application\/json/)
                 .expect(200)
                 .end((err, res) => {
-                  expect(res.text).to.equal(JSON.stringify(response));
+                  expect(res.text).to.equal(response);
                   fs.access(responsePath, fs.F_OK, done);
                 });
             });
@@ -112,7 +115,7 @@ describe('start()', function() {
                 .expect('Content-Type', /application\/json/)
                 .expect(200)
                 .end((err, res) => {
-                  expect(res.text).to.equal(JSON.stringify(response));
+                  expect(res.text).to.equal(response);
                   fs.access(responsePath, fs.F_OK, done);
                 });
             });
@@ -123,7 +126,7 @@ describe('start()', function() {
                 .expect('Content-Type', /application\/javascript/)
                 .expect(200)
                 .end((err, res) => {
-                  expect(res.text).to.equal(JSON.stringify(response));
+                  expect(res.text).to.equal(response);
                   fs.access(responsePathWithCallback, fs.F_OK, done);
                 });
             });
@@ -134,7 +137,9 @@ describe('start()', function() {
               nock(PROD_ROOT_URL)
                 .get(route)
                 .query(true)
-                .reply(200, response);
+                .reply(200, response, {
+                  'Content-Type': 'application/json'
+                });
 
               start({ ...DEFAULT_OPTIONS, saveFixtures: false }, (err, result) => {
                 mockAPI = result;
@@ -149,10 +154,10 @@ describe('start()', function() {
             it('responses with a response from the production API and does not persist the response', function(done) {
               request(mockAPI.app)
                 .get(route)
-                .expect('Content-Type', /application\/json/)
+                .expect('Content-Type', 'application/json')
                 .expect(200)
                 .end((err, res) => {
-                  expect(res.text).to.equal(JSON.stringify(response));
+                  expect(res.text).to.equal(response);
                   fs.access(responsePath, fs.F_OK, (err) => {
                     if (err) {
                       return done();
@@ -211,7 +216,6 @@ describe('start()', function() {
         });
 
         it('serves the locally persisted response as JSON and does not hit the production API', function(done) {
-          console.log(request(mockAPI.app).get(route));
           request(mockAPI.app)
             .get(route)
             .expect('Content-Type', /application\/json/)
@@ -273,7 +277,7 @@ describe('start()', function() {
       describe('And there is a non-JSON/non-JS file matching a given route', function() {
         let mockAPI;
         const route = '/persisted_html_route';
-        const responsePath = RESPONSES_DIR + route + '.json';
+        const responsePath = RESPONSES_DIR + route + '.html';
         const response = fs.readFileSync(responsePath, 'utf8');
 
         before(function(done) {
