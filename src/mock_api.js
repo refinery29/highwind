@@ -291,8 +291,10 @@ function serveResponse(res, data, fileName, options) {
 
   if (fileName.match(/.json/)) {
     if (newResponse) {
+      // Data is from fetch() response
       return res.json(JSON.parse(JSON.stringify(data)));
     }
+    // Data is from fs.readFile()
     return res.json(JSON.parse(data));
   }
 
