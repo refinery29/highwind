@@ -237,6 +237,40 @@ describe('start()', function() {
         });
       });
 
+      describe('And there is a invalid JSON file matching a given route', function() {
+        let mockAPI;
+        const route = '/persisted_invalid_json_route';
+
+        beforeEach(function(done) {
+          nock(PROD_ROOT_URL)
+            .get(route)
+            .query(true)
+            .replyWithError('Fake API hit the production API');
+
+          start(DEFAULT_OPTIONS, (err, result) => {
+            mockAPI = result;
+            done();
+          });
+
+          spyOn(console, 'error');
+        });
+
+        afterEach(function() {
+          close(mockAPI.servers);
+          console.error.restore();
+        });
+
+        it('serves a blank resonse and logs an error', function(done) {
+          request(mockAPI.app)
+            .get(route)
+            .expect('Content-Type', /application\/json/)
+            .expect(200, {}, () => {
+              expect(console.error.calledWith("⛔️ Could not parse and serve invalid JSON: SyntaxError: Unexpected token r in JSON at position 32")).to.be.true;
+              done()
+            });
+        });
+      });
+
       describe('And there is a JS file matching a given route', function() {
         let mockAPI;
         const route = '/persisted_js_route';

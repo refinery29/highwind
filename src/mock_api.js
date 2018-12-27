@@ -290,12 +290,17 @@ function serveResponse(res, data, fileName, options) {
   }
 
   if (fileName.match(/.json/)) {
-    if (newResponse) {
-      // Data is from fetch() response
-      return res.json(JSON.parse(JSON.stringify(data)));
+    try {
+      if (newResponse) {
+        // data is from fetch's response.json() and does not need parsing
+        return res.json(data);
+      }
+      // data is from fs.readFile() and needs parsing
+      return res.json(JSON.parse(data));
+    } catch (e) {
+      console.error(`⛔️ Could not parse and serve invalid JSON: ${e}`);
+      return res.json({});
     }
-    // Data is from fs.readFile()
-    return res.json(JSON.parse(data));
   }
 
   if (fileName.match(/.js/)) {
