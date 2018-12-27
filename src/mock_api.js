@@ -57,6 +57,7 @@ module.exports = {
           serveResponse(res, data, jsonFileName, { ...settings });
         });
       } else if(fs.existsSync(jsFileName)) {
+        delete require.cache[require.resolve(jsFileName)] // clear cache to keep JS require dynamic
         const data = require(jsFileName).default();
         serveResponse(res, data, jsFileName, { ...settings });
       } else if(fs.existsSync(htmlFileName)) {
