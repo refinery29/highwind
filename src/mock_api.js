@@ -52,15 +52,15 @@ module.exports = {
       const htmlFileName = getFileName(path, 'html', settings);
       // Handles JSON, JS, and HTML files.
       // If the file is not found, fetch a JSON response from production.
-      if(fs.existsSync(jsonFileName)) {
+      if (fs.existsSync(jsonFileName)) {
         fs.readFile(jsonFileName, encoding, (err, data) => {
           serveResponse(res, data, jsonFileName, { ...settings });
         });
-      } else if(fs.existsSync(jsFileName)) {
+      } else if (fs.existsSync(jsFileName)) {
         delete require.cache[require.resolve(jsFileName)] // clear cache to keep JS require dynamic
         const data = require(jsFileName).default();
         serveResponse(res, data, jsFileName, { ...settings });
-      } else if(fs.existsSync(htmlFileName)) {
+      } else if (fs.existsSync(htmlFileName)) {
         fs.readFile(htmlFileName, encoding, (err, data) => {
           serveResponse(res, data, htmlFileName, { ...settings });
         });

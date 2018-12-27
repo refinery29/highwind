@@ -25,6 +25,7 @@ module.exports = {
     "no-undefined": 2,
     "no-unused-vars": 2,
     "space-before-function-paren": [2, "never"],
+    "space-after-keywords": 2,
     "no-console": 0
   }
 };
