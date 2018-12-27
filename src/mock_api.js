@@ -50,7 +50,7 @@ module.exports = {
       const jsonFileName = getFileName(path, 'json', settings);
       const jsFileName = getFileName(path, 'js', settings);
       const htmlFileName = getFileName(path, 'html', settings);
-      // Handles JS, JSON, and HTML.
+      // Handles JSON, JS, and HTML files.
       // If the file is not found, fetch a JSON response from production.
       if(fs.existsSync(jsonFileName)) {
         fs.readFile(jsonFileName, encoding, (err, data) => {
