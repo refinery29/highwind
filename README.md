@@ -225,14 +225,14 @@ Highwind recognizes when a fixture file ends in `.js` instead of `.json`. When t
 This can be useful for creating many fixtures based off of a few base fixtures without the hassle of copying and maintaining 100s of lines of identical JSON in each fixture file.
 
 ```
-// Import a complex JSON fixture as JS object
-import baseJSON from './persisted_json_route.json';
-
 export default () => {
-  // Change important values here
+  // Import a complex JSON fixture as a JS object
+  const baseJSON = JSON.parse(fs.readFileSync('./fixtures/persisted_json_route.json'));
+
+  // Modify a few values
   baseJSON.title = "I am overriding the title value";
 
-  // Return the modified JS object back to Highwind for parsing into JSON
+  // Return the modified JS object back to Highwind for parsing back into JSON
   return baseJSON;
 }
 ```
