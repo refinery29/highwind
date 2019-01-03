@@ -51,7 +51,64 @@ Highwind only needs to know your the root URL for your production API and the
 absolute path to your fixtures directory to get started.
 
 By default, Highwind listens for requests on port **4567**. You can change that
-in the config, however.
+in the [config, however](#configuration-options).
+
+## Fixtures
+
+You may supply your fixtures as JSON, JS, or HTML files:
+
+#### JSON Fixture
+
+*Filepath:* `./fixtures/myApiResponse.json`
+
+```json
+{
+  "result": {
+    "foo":  "bar"
+    }
+}
+```
+
+In this example, requesting `localhost:4567/myApiResponse` would return the above JSON.
+
+#### HTML Fixture
+
+*Filepath:* `./fixtures/myApiResponse.html`
+
+```json
+<html>
+  <head>
+    <title>Test</title>
+  </head>
+  <body>
+  </body>
+</html>
+```
+
+In this example, requesting `localhost:4567/myApiResponse` would return the above HTML.
+
+#### JS Fixture
+
+*Filepath:* `./fixtures/myApiResponse.js`
+
+```js
+export default () => {
+  return {
+    result: {
+      foo: "bar"
+    }
+  };
+}
+```
+
+In this example, requesting `localhost:4567/myApiResponse` would return the following JSON.
+```json
+{
+  "result": {
+    "foo":  "bar"
+    }
+}
+```
 
 ## Configuration Options
 These are dropped in to the options object passed to `highwind.start()` during instantiation.
@@ -83,7 +140,11 @@ These are dropped in to the options object passed to `highwind.start()` during i
   * **Default:** 0
   * Number of milliseconds to delay responses in order to simulate latency.
 
+
 ## HTTP Route Overrides
+
+In some instances you may want to override the behavior for a specific route.
+
 Here are some examples of HTTP route overrides and their use cases.
 
 ### Serving a JSON response
@@ -157,9 +218,33 @@ overrides: {
 ```
 This serves the specified response _only_ when the query string matches the params specified in the `withQueryParams` object; in all other cases, it defers to the default response.
 
-## Serving a JSONP response
+## JS as JSON Responses
 
-Highwind serves all routes with a `callback` specified in the query string as JSONP by default. This is easy to disable, though, either by specifying a non-JS `'Content-Type'` header in an override for a specific route or by adding something like `/callback\=([^\&]+)/` to your `queryStringIgnore` collection.
+Highwind recognizes when a fixture file ends in `.js` instead of `.json`. When this is the case, Highwind evaluates the `export default` function of that file and attempts to return its output as JSON.
+
+This can be useful for creating many fixtures based off of a few base fixtures without the hassle of copying and maintaining 100s of lines of identical JSON in each fixture file.
+
+```
+export default () => {
+  // Import a complex JSON fixture as a JS object
+  const baseJSON = JSON.parse(fs.readFileSync('./fixtures/persisted_json_route.json'));
+
+  // Modify a few values
+  baseJSON.title = "I am overriding the title value";
+
+  // Return the modified JS object back to Highwind for parsing back into JSON
+  return baseJSON;
+}
+```
+
+## JSONP and the Callback Query
+
+Highwind serves all routes with `callback` specified in the query string as
+JSONP, not JSON, by default.
+
+You can disable this by specifying a non-JS `'Content-Type'` header in an
+override for a specific route or by adding  something like
+`/callback\=([^\&]+)/` to your `queryStringIgnore` collection.
 
 ## License
 [MIT License](http://mit-license.org/) © Refinery29, Inc. 2016-2017

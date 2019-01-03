@@ -36,23 +36,37 @@ module.exports = {
     if (corsWhitelist) {
       setCorsMiddleware(app, corsWhitelist);
     }
+
     if (isValidDuration(latency)) {
       simulateLatency(app, latency);
     }
+
     if (overrides) {
       delegateRouteOverrides(app, settings);
     }
 
     app.all('*', (req, res) => {
       const path = getURLPathWithQueryString(req);
-      const fileName = getFileName(path, settings);
-      fs.readFile(fileName, encoding, (err, data) => {
-        if (err) {
-          fetchResponse(req, res, { ...settings, fileName, path });
-        } else {
-          serveResponse(res, { ...settings, fileName, data });
-        }
-      });
+      const jsonFileName = getFileName(path, 'json', settings);
+      const jsFileName = getFileName(path, 'js', settings);
+      const htmlFileName = getFileName(path, 'html', settings);
+      // Handles JSON, JS, and HTML files.
+      // If the file is not found, fetch a JSON response from production.
+      if (fs.existsSync(jsonFileName)) {
+        fs.readFile(jsonFileName, encoding, (err, data) => {
+          serveResponse(res, data, jsonFileName, { ...settings });
+        });
+      } else if (fs.existsSync(jsFileName)) {
+        delete require.cache[require.resolve(jsFileName)] // clear cache to keep JS require dynamic
+        const data = require(jsFileName).default();
+        serveResponse(res, data, jsFileName, { ...settings });
+      } else if (fs.existsSync(htmlFileName)) {
+        fs.readFile(htmlFileName, encoding, (err, data) => {
+          serveResponse(res, data, htmlFileName, { ...settings });
+        });
+      } else {
+        fetchResponse(req, res, jsonFileName, { ...settings, path });
+      }
     });
 
     const result = {
@@ -147,7 +161,9 @@ function startListening(app, ports, callback) {
   return parallel(tasks, callback);
 }
 
+
 function delegateRouteOverrides(app, options) {
+  // Setup default values
   const { overrides, encoding, quiet } = options;
   const methods = ['get', 'post', 'put', 'delete', 'all'];
   const defaults = {
@@ -160,9 +176,12 @@ function delegateRouteOverrides(app, options) {
   ];
 
   Object.keys(overrides).forEach(method => {
+    // Check for invalid protocol
     if (!methods.includes(method)) {
       throw Error(`Couldn't override route with invalid HTTP method: '${method}'`);
     }
+
+    // Iterate through get, post, etc
     overrides[method].forEach(params => {
       let fixture;
       const routeParams = { ...defaults, ...params };
@@ -181,7 +200,7 @@ function delegateRouteOverrides(app, options) {
       }
 
       if (!response) {
-        const fileName = getFileName(route, options);
+        const fileName = getFileName(route, options, 'json');
         fs.readFile(fileName, encoding, (err, data) => {
           if (err) {
             throw Error(`Route override specified for '${route}' with no response or matching fixture`);
@@ -216,14 +235,14 @@ function delegateRouteOverrides(app, options) {
   });
 }
 
-function fetchResponse(req, res, options) {
+function fetchResponse(req, res, fileName, options) {
   if (req.method !== 'GET') {
     console.error(`==> ⛔️  Couldn't complete fetch with non-GET method`);
     return res.status(500).end();
   }
 
   let responseIsJson;
-  const { prodRootURL, saveFixtures, path, fileName } = options;
+  const { prodRootURL, saveFixtures, path } = options;
   const prodURL = prodRootURL + path;
   const responseIsJsonp = prodURL.match(/callback\=([^\&]+)/);
 
@@ -250,7 +269,7 @@ function fetchResponse(req, res, options) {
       if (saveFixtures) {
         saveFixture(fileName, data, responseIsJson);
       }
-      serveResponse(res, { ...options, data, newResponse: true });
+      serveResponse(res, data, fileName, { ...options, newResponse: true });
     })
     .catch(err => {
       console.error(`==> ⛔️  ${err}`);
@@ -258,24 +277,44 @@ function fetchResponse(req, res, options) {
     });
 }
 
-function serveResponse(res, options) {
-  const { data, fileName, quiet, newResponse } = options;
+function serveResponse(res, data, fileName, options) {
+  const { quiet, newResponse } = options;
+
   if (!quiet && !newResponse) {
     console.info(`==> 📁  Serving local response from ${fileName}`);
   }
+
   if (fileName.match(/callback\=/)) {
-    res
+    return res
       .set({ 'Content-Type': 'application/javascript' })
       .send(data);
-  } else {
+  }
+
+  if (fileName.match(/.json/)) {
     try {
-      res.json(JSON.parse(data));
+      if (newResponse) {
+        // data is from fetch's response.json() and does not need parsing
+        return res.json(data);
+      }
+      // data is from fs.readFile() and needs parsing
+      return res.json(JSON.parse(data));
     } catch (e) {
-      res
-        .set({ 'Content-Type': 'text/html' })
-        .send(data);
+      console.error(`⛔️ Could not parse and serve invalid JSON: ${e}`);
+      return res.json({});
     }
   }
+
+  if (fileName.match(/.js/)) {
+    return res.json(data);
+  }
+
+  if (fileName.match(/.html/)) {
+    return res
+      .set({ 'Content-Type': 'text/html' })
+      .send(data);
+  }
+
+  console.error('⛔️ Filename extension was not recognized. Please check that your fixture ends in .js, .json, or .html!');
 }
 
 function saveFixture(fileName, response, responseIsJson) {
@@ -283,21 +322,23 @@ function saveFixture(fileName, response, responseIsJson) {
     ? JSON.stringify(response)
     : response;
 
-  fs.writeFile(fileName, data, (err) => {
-    if (err) {
-      throw Error(`Couldn't write response locally, received fs error: '${err}'`)
-    }
-    console.info(`==> 💾  Saved response to ${fileName}`);
-  });
+  try {
+    fs.writeFile(fileName, data, () => {
+      console.info(`==> 💾  Saved response to ${fileName}`);
+    });
+  } catch (e) {
+    throw Error(`Couldn't write response locally, received fs error: '${e}'`)
+  }
 }
 
-function getFileName(path, options) {
+function getFileName(path, ext, options) {
   const { queryStringIgnore, fixturesPath } = options;
   const fileNameInDirectory = queryStringIgnore
     .reduce((fileName, regex) => fileName.replace(regex, ''), path)
     .replace(/\//, '')
     .replace(/\//g, ':');
-  return `${fixturesPath}/${fileNameInDirectory}.json`;
+
+  return `${fixturesPath}/${fileNameInDirectory}.${ext}`;
 }
 
 function getURLPathWithQueryString(req) {
