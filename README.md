@@ -247,4 +247,4 @@ override for a specific route or by adding  something like
 `/callback\=([^\&]+)/` to your `queryStringIgnore` collection.
 
 ## License
-[MIT License](http://mit-license.org/) © Refinery29, Inc. 2016-2017
+[MIT License](http://mit-license.org/) © Refinery29, Inc. 2016-2018
