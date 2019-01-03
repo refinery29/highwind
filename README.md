@@ -162,4 +162,4 @@ This serves the specified response _only_ when the query string matches the para
 Highwind serves all routes with a `callback` specified in the query string as JSONP by default. This is easy to disable, though, either by specifying a non-JS `'Content-Type'` header in an override for a specific route or by adding something like `/callback\=([^\&]+)/` to your `queryStringIgnore` collection.
 
 ## License
-[MIT License](http://mit-license.org/) © Refinery29, Inc. 2016-2017
+[MIT License](http://mit-license.org/) © Refinery29, Inc. 2016-2018
